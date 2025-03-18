@@ -189,40 +189,102 @@ def compute_piotroski_fscore(financials, balance_sheet, cash_flow):
     return scores
 
 if __name__ == "__main__":
-    # Demonstration with sample data
-    import pandas as pd
-    
-    # Define two periods (e.g., as strings or timestamps)
-    periods = ["2023-12-31", "2022-12-31"]
-    
-    # Sample Income Statement DataFrame
-    financials_data = {
-        "Net Income": [100, 80],
-        "Total Revenue": [1000, 900],
-        "Cost Of Revenue": [600, 550],
-    }
-    financials = pd.DataFrame(financials_data, index=periods).T
-    
-    # Sample Balance Sheet DataFrame
-    balance_sheet_data = {
-        "Total Assets": [5000, 4800],
-        "Long Term Debt": [1000, 1100],
-        "Total Current Assets": [1500, 1400],
-        "Total Current Liabilities": [800, 850],
-        "Shares Outstanding": [200, 210],
-    }
-    balance_sheet = pd.DataFrame(balance_sheet_data, index=periods).T
-    
-    # Sample Cash Flow DataFrame
-    cash_flow_data = {
-        "Total Cash From Operating Activities": [120, 100],
-    }
-    cash_flow = pd.DataFrame(cash_flow_data, index=periods).T
 
-    # Compute and display the Piotroski F-Score breakdown for the two most recent common periods
-    fscore_results = compute_piotroski_fscore(financials, balance_sheet, cash_flow)
-    
-    print("Piotroski F-Score Breakdown for periods", fscore_results["Period"], ":")
-    for key, value in fscore_results.items():
-        if key != "Period":
-            print(f"{key}: {value}")
+    import os
+    import glob
+    import pandas as pd
+    from fscore import compute_piotroski_fscore
+
+    # Mapping dictionaries for row renaming:
+    INCOME_STATEMENT_ROW_MAP = {
+        "Net Income": "Net Income",
+        "Total Revenue": "Total Revenue",
+        "Cost Of Revenue": "Cost Of Revenue"
+        # Add more if needed
+    }
+
+    BALANCE_SHEET_ROW_MAP = {
+        "Total Assets": "Total Assets",
+        "Long Term Debt": "Long Term Debt",
+        "Total Current Assets": "Total Current Assets",
+        "Total Current Liabilities": "Total Current Liabilities",
+        "Shares Outstanding": "Shares Outstanding"
+        # Add more if needed
+    }
+
+    CASH_FLOW_ROW_MAP = {
+        "Total Cash From Operating Activities": "Total Cash From Operating Activities"
+        # Add more if needed
+    }
+
+    # Define the index folder (e.g., DJIA)
+    index_folder = "Dow_Jones_Industrial_Average"
+    base_dir = os.path.join("data", "raw", index_folder)
+
+    # Use glob to find all income statement CSV files and extract tickers
+    income_files = glob.glob(os.path.join(base_dir, "*_income_statement.csv"))
+    tickers = [os.path.basename(f).split("_")[0] for f in income_files]
+
+    results = []
+
+    for ticker in tickers:
+        print(f"\nProcessing ticker: {ticker}")
+        
+        # Construct file paths for income statement, balance sheet, and cash flow
+        inc_file = os.path.join(base_dir, f"{ticker}_income_statement.csv")
+        bs_file = os.path.join(base_dir, f"{ticker}_balance_sheet.csv")
+        cf_file = os.path.join(base_dir, f"{ticker}_cashflow.csv")
+        
+        # Check if all required files exist
+        if not (os.path.exists(inc_file) and os.path.exists(bs_file) and os.path.exists(cf_file)):
+            print(f"  -> Missing one or more files for {ticker}. Skipping.")
+            continue
+
+        # Load CSV files into DataFrames (using the first column as index)
+        income_statement = pd.read_csv(inc_file, index_col=0)
+        balance_sheet = pd.read_csv(bs_file, index_col=0)
+        cash_flow = pd.read_csv(cf_file, index_col=0)
+        
+        # Rename rows to standard labels
+        income_statement.rename(index=INCOME_STATEMENT_ROW_MAP, inplace=True)
+        balance_sheet.rename(index=BALANCE_SHEET_ROW_MAP, inplace=True)
+        cash_flow.rename(index=CASH_FLOW_ROW_MAP, inplace=True)
+        
+        # Debug: print columns and row labels
+        print("  Income Statement columns:", list(income_statement.columns))
+        print("  Balance Sheet columns:", list(balance_sheet.columns))
+        print("  Cash Flow columns:", list(cash_flow.columns))
+        
+        # Determine common reporting periods across the three statements
+        common_periods = set(income_statement.columns) & set(balance_sheet.columns) & set(cash_flow.columns)
+        if len(common_periods) < 2:
+            print(f"  -> {ticker} does not have at least two common periods. Skipping.")
+            continue
+        else:
+            common_sorted = sorted(common_periods, reverse=True)
+            print("  -> Common periods:", common_sorted)
+        
+        # Compute the Piotroski F-Score for the ticker
+        try:
+            fscore_data = compute_piotroski_fscore(income_statement, balance_sheet, cash_flow)
+            results.append({
+                "Ticker": ticker,
+                "FScore": fscore_data["Total_FScore"],
+                "Current_Period": fscore_data["Period"][0],
+                "Previous_Period": fscore_data["Period"][1],
+                "Breakdown": fscore_data
+            })
+            print(f"  -> F-Score computed: {fscore_data['Total_FScore']}")
+        except Exception as e:
+            print(f"  -> Error computing F-Score for {ticker}: {e}")
+
+    # Summarize the results in a DataFrame
+    df_results = pd.DataFrame(results)
+
+    print("\nPiotroski F-Scores for all tickers:")
+    if not df_results.empty:
+        # Sort alphabetically by Ticker
+        df_results.sort_values(by="Ticker", inplace=True)
+        print(df_results[["Ticker", "FScore", "Current_Period", "Previous_Period"]])
+    else:
+        print("No scores computed.")
