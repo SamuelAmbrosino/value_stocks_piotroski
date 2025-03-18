@@ -1,7 +1,7 @@
 """
 data_loader.py
 --------------
-This file extracts ticker symbols from various Wikipedia pages (for different stock indexes),
+This module extracts ticker symbols from various Wikipedia pages (for different stock indexes),
 downloads their financial statements (income statement, balance sheet, cash flow)
 via yfinance, and saves them as CSV files in data/raw/.
 """
@@ -14,9 +14,9 @@ import yfinance as yf
 INDEXES = {
     "Dow Jones Industrial Average": "https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average",
     "S&P 500": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
-    "CAC 40": "https://en.wikipedia.org/wiki/CAC_40",
-    "IBEX 35": "https://en.wikipedia.org/wiki/IBEX_35",
-    "FTSE 100": "https://en.wikipedia.org/wiki/FTSE_100"
+    #"CAC 40": "https://en.wikipedia.org/wiki/CAC_40",
+    #"IBEX 35": "https://en.wikipedia.org/wiki/IBEX_35",
+    #"FTSE 100": "https://en.wikipedia.org/wiki/FTSE_100"
 }
 
 def create_directory_if_not_exists(path: str) -> None:
@@ -53,8 +53,8 @@ def get_tickers_from_wikipedia(index_name: str) -> list:
     return tickers
 
 def download_statements_for_ticker(ticker_symbol: str, output_dir: str) -> None:
-    # This function downloads the financials, balance_sheet and cash_flow statement of the ticker_symbol passed as a parameter and save it as a CSV file.
-    # Later we will use this function to get all financials, balance_sheet and cash_flow from each symbol of each index.
+    # This function downloads the income_statement, balance_sheet and cash_flow statement of the ticker_symbol passed as a parameter and save it as a CSV file.
+    # Later we will use this function to get all financials, income_statement, balance_sheet and cash_flow from each symbol of each index.
 
     ticker = yf.Ticker(ticker_symbol)
 
@@ -64,7 +64,7 @@ def download_statements_for_ticker(ticker_symbol: str, output_dir: str) -> None:
 
     # Save each DataFrame if it's not empty
     if not financials.empty:
-        financials.to_csv(os.path.join(output_dir, f"{ticker_symbol}_financials.csv"))
+        financials.to_csv(os.path.join(output_dir, f"{ticker_symbol}_income_statement.csv"))
     if not balance_sheet.empty:
         balance_sheet.to_csv(os.path.join(output_dir, f"{ticker_symbol}_balance_sheet.csv"))
     if not cash_flow.empty:
